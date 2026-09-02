@@ -25,6 +25,7 @@ A family or caregiver logs check-ins, medication, and shared care tasks for a pe
 ## Running it
 
 ```bash
+cp .env.example .env   # only needed if you want to set a non-default PORT or Bedrock config
 npm install
 npm run build
 npm start
@@ -35,11 +36,13 @@ Or for local development with auto-reload: `npm run dev`.
 
 ### Trying it with MCP Inspector
 
+With the server running (`npm start`) in one terminal, in another:
+
 ```bash
-npx @modelcontextprotocol/inspector
+npx @modelcontextprotocol/inspector@latest
 ```
 
-Connect to `http://localhost:3000/mcp` using the Streamable HTTP transport, then call the tools listed above directly from the Inspector UI.
+In the Inspector UI: set **Transport Type** to `Streamable HTTP` (not the default `STDIO`), set the URL to `http://localhost:3000/mcp`, then click **Connect**. Ignore the pre-filled `Command`/`Arguments` fields — those are only used for the STDIO transport. Once connected, the **Tools** tab lists and lets you call each tool above.
 
 ### Scripted demo
 

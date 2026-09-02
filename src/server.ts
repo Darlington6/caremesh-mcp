@@ -1,5 +1,12 @@
 import express from "express";
 import { randomUUID } from "node:crypto";
+
+try {
+  process.loadEnvFile();
+} catch {
+  // no .env file present — fine, fall back to whatever's already in the environment
+}
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
