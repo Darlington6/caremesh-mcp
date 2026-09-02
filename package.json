@@ -1,0 +1,25 @@
+{
+  "name": "caremesh-mcp",
+  "version": "0.1.0",
+  "description": "Self-hosted MCP server for caretaking coordination, built for Alexa+ agents (MCP spec 2025-11-25+, Streamable HTTP).",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1125.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "express": "^5.2.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
