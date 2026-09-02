@@ -2,9 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { addCareTask, addCheckIn, addMedicationEvent, getDayData, getRecentActivity, listCareTasks } from "../store.js";
 import { generateDailySummary } from "../bedrock.js";
-
-const HOURS_UNTIL_CHECKIN_OVERDUE = 24;
-const HOURS_UNTIL_MISSED_MED_STALE = 7 * 24;
+import { computeAlerts } from "../alerts.js";
 
 function textResult(text: string) {
   return { content: [{ type: "text" as const, text }] };
@@ -112,28 +110,7 @@ export function registerCaretakingTools(server: McpServer): void {
     },
     async ({ person }) => {
       const { checkIns, medicationEvents } = await getRecentActivity(person);
-      const now = Date.now();
-      const alerts: string[] = [];
-
-      const lastCheckIn = checkIns[0];
-      const hoursSinceCheckIn = lastCheckIn ? (now - Date.parse(lastCheckIn.timestamp)) / 3_600_000 : Infinity;
-      if (hoursSinceCheckIn > HOURS_UNTIL_CHECKIN_OVERDUE) {
-        alerts.push(
-          lastCheckIn
-            ? `No check-in for ${person} in ${Math.round(hoursSinceCheckIn)} hours (last: ${lastCheckIn.timestamp}).`
-            : `No check-in has ever been recorded for ${person}.`
-        );
-      }
-
-      const lastMissed = medicationEvents.find((m) => !m.taken);
-      if (lastMissed) {
-        const hoursSinceMissed = (now - Date.parse(lastMissed.timestamp)) / 3_600_000;
-        const takenSince = medicationEvents.some((m) => m.taken && Date.parse(m.timestamp) > Date.parse(lastMissed.timestamp));
-        if (!takenSince && hoursSinceMissed < 7 * 24) {
-          alerts.push(`Missed medication "${lastMissed.medication}" at ${lastMissed.timestamp} with no taken dose logged since.`);
-        }
-      }
-
+      const alerts = computeAlerts(person, checkIns, medicationEvents);
       return textResult(alerts.length > 0 ? `Alerts for ${person}:\n- ${alerts.join("\n- ")}` : `No alerts for ${person}.`);
     }
   );

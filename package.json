@@ -6,9 +6,12 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "dev": "tsx watch src/server.ts"
+    "dev": "tsx watch src/server.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "demo": "tsx scripts/demo.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1125.0",

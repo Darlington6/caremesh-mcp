@@ -10,7 +10,7 @@ function getClient(): BedrockRuntimeClient {
   return client;
 }
 
-interface DaySnapshot {
+export interface DaySnapshot {
   person: string;
   date: string;
   checkIns: CheckIn[];
@@ -30,7 +30,7 @@ function buildPrompt({ person, date, checkIns, medicationEvents, careTasks }: Da
 }
 
 /** Local, deterministic summary used when Bedrock isn't configured or the call fails. */
-function fallbackSummary(snapshot: DaySnapshot): string {
+export function fallbackSummary(snapshot: DaySnapshot): string {
   const { person, checkIns, medicationEvents, careTasks } = snapshot;
   const missedMeds = medicationEvents.filter((m) => !m.taken);
   const openTasks = careTasks.filter((t) => !t.done);
