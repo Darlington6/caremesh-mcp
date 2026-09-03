@@ -1,6 +1,6 @@
 import "./env.js";
 import express from "express";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -32,6 +32,31 @@ app.use(
     legacyHeaders: false,
   }),
 );
+
+// Optional bearer-token auth: set MCP_AUTH_TOKEN to require `Authorization: Bearer <token>` on
+// every /mcp request. Unset (the local/dev default) disables the check entirely — a real
+// deployment should always set this. Constant-time comparison to avoid a timing side-channel.
+const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN;
+
+function isValidToken(provided: string): boolean {
+  const expected = Buffer.from(MCP_AUTH_TOKEN!);
+  const actual = Buffer.from(provided);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+app.use("/mcp", (req, res, next) => {
+  if (!MCP_AUTH_TOKEN) {
+    next();
+    return;
+  }
+  const header = req.header("authorization");
+  const provided = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
+  if (provided && isValidToken(provided)) {
+    next();
+    return;
+  }
+  res.status(401).json({ jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized" }, id: null });
+});
 
 const transports = new Map<string, StreamableHTTPServerTransport>();
 
@@ -97,6 +122,11 @@ if (process.env.DYNAMODB_ENDPOINT) {
 
 const server = app.listen(PORT, () => {
   console.log(`caremesh-mcp listening on http://localhost:${PORT} (MCP endpoint: POST /mcp)`);
+  console.log(
+    MCP_AUTH_TOKEN
+      ? "Auth: enabled (Authorization: Bearer <token> required)"
+      : "Auth: disabled (MCP_AUTH_TOKEN not set)",
+  );
 });
 
 async function shutdown(signal: string): Promise<void> {
