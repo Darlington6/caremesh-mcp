@@ -1,4 +1,4 @@
-import { test, after } from "node:test";
+import { describe, test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -9,7 +9,10 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForHealthy(baseUrl: string, retries = 30): Promise<void> {
+// Generous budget: a cold spawn here pays for tsx's TS transform, Express startup, and (since
+// this is the first time these table names are used) four DynamoDB CreateTable round-trips —
+// slower CI runners need real headroom, not just what's comfortable locally.
+async function waitForHealthy(baseUrl: string, retries = 60): Promise<void> {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(`${baseUrl}/healthz`);
@@ -17,7 +20,7 @@ async function waitForHealthy(baseUrl: string, retries = 30): Promise<void> {
     } catch {
       // not up yet
     }
-    await sleep(300);
+    await sleep(500);
   }
   throw new Error(`Server at ${baseUrl} did not become healthy in time`);
 }
@@ -32,6 +35,7 @@ async function startServer(opts: { port: number; authToken?: string }): Promise<
       CHECKINS_TABLE: `test-auth-checkins-${runId}`,
       MEDICATION_TABLE: `test-auth-medication-${runId}`,
       TASKS_TABLE: `test-auth-tasks-${runId}`,
+      HOUSEHOLDS_TABLE: `test-auth-households-${runId}`,
       MCP_AUTH_TOKEN: opts.authToken ?? "",
     },
     stdio: "ignore",
@@ -54,38 +58,52 @@ function initializeRequest(baseUrl: string, headers: Record<string, string> = {}
   });
 }
 
-test("auth disabled (no MCP_AUTH_TOKEN): /mcp accepts requests with no Authorization header", async () => {
-  const { baseUrl, stop } = await startServer({ port: 3501 });
-  after(stop);
-  const res = await initializeRequest(baseUrl);
-  assert.equal(res.status, 200);
+// One server per auth mode, shared across that mode's assertions — these are read-only checks
+// against the auth middleware itself, not the data layer, so there's nothing for them to step
+// on by sharing a server. Cuts this file from 5 full server spawns to 2.
+
+describe("auth disabled (no MCP_AUTH_TOKEN)", () => {
+  let baseUrl: string;
+  let stop: () => void;
+
+  before(async () => {
+    ({ baseUrl, stop } = await startServer({ port: 3501 }));
+  });
+  after(() => stop());
+
+  test("/mcp accepts requests with no Authorization header", async () => {
+    const res = await initializeRequest(baseUrl);
+    assert.equal(res.status, 200);
+  });
 });
 
-test("auth enabled: /mcp rejects requests with no Authorization header", async () => {
-  const { baseUrl, stop } = await startServer({ port: 3502, authToken: "secret-token" });
-  after(stop);
-  const res = await initializeRequest(baseUrl);
-  assert.equal(res.status, 401);
-  assert.match(res.headers.get("www-authenticate") ?? "", /Bearer/);
-});
+describe("auth enabled (MCP_AUTH_TOKEN set)", () => {
+  let baseUrl: string;
+  let stop: () => void;
 
-test("auth enabled: /mcp rejects an incorrect bearer token", async () => {
-  const { baseUrl, stop } = await startServer({ port: 3503, authToken: "secret-token" });
-  after(stop);
-  const res = await initializeRequest(baseUrl, { Authorization: "Bearer wrong-token" });
-  assert.equal(res.status, 401);
-});
+  before(async () => {
+    ({ baseUrl, stop } = await startServer({ port: 3502, authToken: "secret-token" }));
+  });
+  after(() => stop());
 
-test("auth enabled: /mcp accepts the correct bearer token", async () => {
-  const { baseUrl, stop } = await startServer({ port: 3504, authToken: "secret-token" });
-  after(stop);
-  const res = await initializeRequest(baseUrl, { Authorization: "Bearer secret-token" });
-  assert.equal(res.status, 200);
-});
+  test("/mcp rejects requests with no Authorization header", async () => {
+    const res = await initializeRequest(baseUrl);
+    assert.equal(res.status, 401);
+    assert.match(res.headers.get("www-authenticate") ?? "", /Bearer/);
+  });
 
-test("auth enabled: /healthz stays open (no Authorization header needed)", async () => {
-  const { baseUrl, stop } = await startServer({ port: 3505, authToken: "secret-token" });
-  after(stop);
-  const res = await fetch(`${baseUrl}/healthz`);
-  assert.equal(res.status, 200);
+  test("/mcp rejects an incorrect bearer token", async () => {
+    const res = await initializeRequest(baseUrl, { Authorization: "Bearer wrong-token" });
+    assert.equal(res.status, 401);
+  });
+
+  test("/mcp accepts the correct bearer token", async () => {
+    const res = await initializeRequest(baseUrl, { Authorization: "Bearer secret-token" });
+    assert.equal(res.status, 200);
+  });
+
+  test("/healthz stays open (no Authorization header needed)", async () => {
+    const res = await fetch(`${baseUrl}/healthz`);
+    assert.equal(res.status, 200);
+  });
 });

@@ -62,23 +62,27 @@ TABLE_SPECS.push({
  * since the app's IAM role shouldn't need CreateTable permission in production.
  */
 export async function ensureLocalTablesExist(): Promise<void> {
-  for (const { name, keySchema, attributeDefinitions } of TABLE_SPECS) {
-    const exists = await rawClient
-      .send(new DescribeTableCommand({ TableName: name }))
-      .then(() => true)
-      .catch((err) => {
-        if (err instanceof ResourceNotFoundException) return false;
-        throw err;
-      });
-    if (exists) continue;
+  // The tables are independent of each other, so check/create them concurrently rather than
+  // paying for four round-trips in sequence on every startup.
+  await Promise.all(
+    TABLE_SPECS.map(async ({ name, keySchema, attributeDefinitions }) => {
+      const exists = await rawClient
+        .send(new DescribeTableCommand({ TableName: name }))
+        .then(() => true)
+        .catch((err) => {
+          if (err instanceof ResourceNotFoundException) return false;
+          throw err;
+        });
+      if (exists) return;
 
-    await rawClient.send(
-      new CreateTableCommand({
-        TableName: name,
-        AttributeDefinitions: attributeDefinitions,
-        KeySchema: keySchema,
-        BillingMode: "PAY_PER_REQUEST",
-      }),
-    );
-  }
+      await rawClient.send(
+        new CreateTableCommand({
+          TableName: name,
+          AttributeDefinitions: attributeDefinitions,
+          KeySchema: keySchema,
+          BillingMode: "PAY_PER_REQUEST",
+        }),
+      );
+    }),
+  );
 }
