@@ -23,8 +23,7 @@ export interface CareTask {
   createdAt: string;
 }
 
-export interface StoreData {
-  checkIns: CheckIn[];
-  medicationEvents: MedicationEvent[];
-  careTasks: CareTask[];
+export interface Household {
+  household: string;
+  members: string[];
 }

@@ -39,3 +39,14 @@ export function computeAlerts(
 
   return alerts;
 }
+
+/**
+ * Household alerts are just each member's own alerts flattened together — computeAlerts already
+ * names the person in every message it produces, so no extra prefixing is needed here.
+ */
+export function computeHouseholdAlerts(
+  members: Array<{ person: string; checkIns: CheckIn[]; medicationEvents: MedicationEvent[] }>,
+  now: number = Date.now(),
+): string[] {
+  return members.flatMap((m) => computeAlerts(m.person, m.checkIns, m.medicationEvents, now));
+}

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeAlerts } from "../src/alerts.js";
+import { computeAlerts, computeHouseholdAlerts } from "../src/alerts.js";
 import type { CheckIn, MedicationEvent } from "../src/types.js";
 
 const NOW = Date.parse("2026-09-10T12:00:00.000Z");
@@ -64,4 +64,28 @@ test("does not flag a missed medication older than the stale window", () => {
 test("can flag both an overdue check-in and a missed medication at once", () => {
   const alerts = computeAlerts("Mom", [checkIn(48)], [med(6, false)], NOW);
   assert.equal(alerts.length, 2);
+});
+
+test("computeHouseholdAlerts flattens alerts across members, naming each person", () => {
+  const alerts = computeHouseholdAlerts(
+    [
+      { person: "Mom", checkIns: [checkIn(48)], medicationEvents: [] },
+      { person: "Dad", checkIns: [checkIn(2)], medicationEvents: [med(5, false, "Metformin")] },
+    ],
+    NOW,
+  );
+  assert.equal(alerts.length, 2);
+  assert.match(alerts[0], /No check-in for Mom/);
+  assert.match(alerts[1], /Missed medication "Metformin"/);
+});
+
+test("computeHouseholdAlerts returns nothing when every member is fine", () => {
+  const alerts = computeHouseholdAlerts(
+    [
+      { person: "Mom", checkIns: [checkIn(1)], medicationEvents: [med(1, true)] },
+      { person: "Dad", checkIns: [checkIn(2)], medicationEvents: [med(2, true)] },
+    ],
+    NOW,
+  );
+  assert.deepEqual(alerts, []);
 });

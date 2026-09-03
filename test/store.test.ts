@@ -8,10 +8,14 @@ before(async () => {
   await ensureLocalTablesExist();
 });
 
-// Each test uses its own unique "person" partition key rather than a fresh table/file per test,
-// since DynamoDB Local table creation is too slow to repeat per test.
+// Each test uses its own unique "person"/"household" partition key rather than a fresh
+// table/file per test, since DynamoDB Local table creation is too slow to repeat per test.
 function testPerson(label: string): string {
   return `test-${label}-${randomUUID()}`;
+}
+
+function testHousehold(label: string): string {
+  return `test-household-${label}-${randomUUID()}`;
 }
 
 test("addCheckIn persists and is retrievable via getDayData", async () => {
@@ -54,4 +58,35 @@ test("concurrent writes don't clobber each other", async () => {
   await Promise.all(Array.from({ length: 10 }, (_, i) => store.addCareTask(person, `Task ${i}`)));
   const tasks = await store.listCareTasks(person);
   assert.equal(tasks.length, 10);
+});
+
+test("listHouseholdMembers is empty for a household that was never created", async () => {
+  const household = testHousehold("nonexistent");
+  const members = await store.listHouseholdMembers(household);
+  assert.deepEqual(members, []);
+});
+
+test("addHouseholdMember adds people and listHouseholdMembers returns them sorted", async () => {
+  const household = testHousehold("smith");
+  await store.addHouseholdMember(household, "Mom");
+  await store.addHouseholdMember(household, "Dad");
+  const members = await store.listHouseholdMembers(household);
+  assert.deepEqual(members, ["Dad", "Mom"]);
+});
+
+test("adding the same household member twice is idempotent", async () => {
+  const household = testHousehold("idempotent");
+  await store.addHouseholdMember(household, "Mom");
+  await store.addHouseholdMember(household, "Mom");
+  const members = await store.listHouseholdMembers(household);
+  assert.deepEqual(members, ["Mom"]);
+});
+
+test("households are isolated from each other", async () => {
+  const householdA = testHousehold("a");
+  const householdB = testHousehold("b");
+  await store.addHouseholdMember(householdA, "Mom");
+  await store.addHouseholdMember(householdB, "Grandpa");
+  assert.deepEqual(await store.listHouseholdMembers(householdA), ["Mom"]);
+  assert.deepEqual(await store.listHouseholdMembers(householdB), ["Grandpa"]);
 });
