@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLES } from "./dynamodb.js";
 import type { CareTask, CheckIn, MedicationEvent } from "./types.js";
 
@@ -77,4 +77,23 @@ export async function getRecentActivity(person: string) {
     checkIns: (checkInsResult.Items ?? []) as CheckIn[],
     medicationEvents: (medicationResult.Items ?? []) as MedicationEvent[],
   };
+}
+
+// Members are stored as a DynamoDB String Set so adding the same person twice is a no-op and
+// concurrent adds to different people can't clobber each other (no read-modify-write needed).
+export async function addHouseholdMember(household: string, person: string): Promise<void> {
+  await ddb.send(
+    new UpdateCommand({
+      TableName: TABLES.households,
+      Key: { household },
+      UpdateExpression: "ADD members :p",
+      ExpressionAttributeValues: { ":p": new Set([person]) },
+    }),
+  );
+}
+
+export async function listHouseholdMembers(household: string): Promise<string[]> {
+  const result = await ddb.send(new GetCommand({ TableName: TABLES.households, Key: { household } }));
+  const members = (result.Item?.members as Set<string> | undefined) ?? new Set<string>();
+  return [...members].sort();
 }

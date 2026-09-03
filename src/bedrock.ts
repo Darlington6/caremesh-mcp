@@ -11,6 +11,19 @@ function getClient(): BedrockRuntimeClient {
   return client;
 }
 
+function credentialsConfigured(): boolean {
+  return Boolean(process.env.AWS_REGION || process.env.AWS_PROFILE || process.env.AWS_ACCESS_KEY_ID);
+}
+
+async function callBedrock(prompt: string): Promise<string> {
+  const response = await getClient().send(
+    new ConverseCommand({ modelId: MODEL_ID, messages: [{ role: "user", content: [{ text: prompt }] }] }),
+  );
+  const text = response.output?.message?.content?.map((c) => c.text ?? "").join("") ?? "";
+  if (!text.trim()) throw new Error("empty Bedrock response");
+  return text.trim();
+}
+
 export interface DaySnapshot {
   person: string;
   date: string;
@@ -19,13 +32,19 @@ export interface DaySnapshot {
   careTasks: CareTask[];
 }
 
-function buildPrompt({ person, date, checkIns, medicationEvents, careTasks }: DaySnapshot): string {
+function describeDay({ checkIns, medicationEvents, careTasks }: DaySnapshot): string {
   return [
-    `You are a caretaking assistant summarizing a day for a family caregiver.`,
-    `Person: ${person}. Date: ${date}.`,
     `Check-ins: ${JSON.stringify(checkIns.map(({ note, mood, timestamp }) => ({ note, mood, timestamp })))}`,
     `Medication events: ${JSON.stringify(medicationEvents.map(({ medication, taken, timestamp }) => ({ medication, taken, timestamp })))}`,
     `Open care tasks: ${JSON.stringify(careTasks.filter((t) => !t.done).map(({ task, due }) => ({ task, due })))}`,
+  ].join("\n");
+}
+
+function buildPrompt(snapshot: DaySnapshot): string {
+  return [
+    `You are a caretaking assistant summarizing a day for a family caregiver.`,
+    `Person: ${snapshot.person}. Date: ${snapshot.date}.`,
+    describeDay(snapshot),
     `Write a short (3-5 sentence), warm, plain-language summary a caregiver could read in passing. Call out anything concerning (missed medication, no check-in, overdue tasks) clearly but calmly.`,
   ].join("\n");
 }
@@ -60,22 +79,47 @@ export function fallbackSummary(snapshot: DaySnapshot): string {
 export async function generateDailySummary(
   snapshot: DaySnapshot,
 ): Promise<{ summary: string; source: "bedrock" | "fallback" }> {
-  if (!process.env.AWS_REGION && !process.env.AWS_PROFILE && !process.env.AWS_ACCESS_KEY_ID) {
+  if (!credentialsConfigured()) {
     return { summary: fallbackSummary(snapshot), source: "fallback" };
   }
-
   try {
-    const response = await getClient().send(
-      new ConverseCommand({
-        modelId: MODEL_ID,
-        messages: [{ role: "user", content: [{ text: buildPrompt(snapshot) }] }],
-      }),
-    );
-    const text = response.output?.message?.content?.map((c) => c.text ?? "").join("") ?? "";
-    if (!text.trim()) throw new Error("empty Bedrock response");
-    return { summary: text.trim(), source: "bedrock" };
+    return { summary: await callBedrock(buildPrompt(snapshot)), source: "bedrock" };
   } catch (err) {
     console.error("Bedrock call failed, using local fallback summary:", err);
     return { summary: fallbackSummary(snapshot), source: "fallback" };
+  }
+}
+
+export interface HouseholdSnapshot {
+  household: string;
+  date: string;
+  members: DaySnapshot[];
+}
+
+function buildHouseholdPrompt({ household, date, members }: HouseholdSnapshot): string {
+  return [
+    `You are a caretaking assistant summarizing a day for a family caregiver responsible for multiple people in one household.`,
+    `Household: ${household}. Date: ${date}.`,
+    ...members.map((m) => `--- ${m.person} ---\n${describeDay(m)}`),
+    `Write a short, warm, plain-language summary covering everyone in the household. Call out anything concerning for any individual clearly but calmly.`,
+  ].join("\n");
+}
+
+/** Local, deterministic household summary — reuses fallbackSummary per member. */
+export function fallbackHouseholdSummary(snapshot: HouseholdSnapshot): string {
+  return snapshot.members.map((m) => `${m.person}: ${fallbackSummary(m)}`).join("\n");
+}
+
+export async function generateHouseholdSummary(
+  snapshot: HouseholdSnapshot,
+): Promise<{ summary: string; source: "bedrock" | "fallback" }> {
+  if (!credentialsConfigured()) {
+    return { summary: fallbackHouseholdSummary(snapshot), source: "fallback" };
+  }
+  try {
+    return { summary: await callBedrock(buildHouseholdPrompt(snapshot)), source: "bedrock" };
+  } catch (err) {
+    console.error("Bedrock call failed, using local fallback household summary:", err);
+    return { summary: fallbackHouseholdSummary(snapshot), source: "fallback" };
   }
 }

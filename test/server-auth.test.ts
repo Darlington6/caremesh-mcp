@@ -66,6 +66,7 @@ test("auth enabled: /mcp rejects requests with no Authorization header", async (
   after(stop);
   const res = await initializeRequest(baseUrl);
   assert.equal(res.status, 401);
+  assert.match(res.headers.get("www-authenticate") ?? "", /Bearer/);
 });
 
 test("auth enabled: /mcp rejects an incorrect bearer token", async () => {

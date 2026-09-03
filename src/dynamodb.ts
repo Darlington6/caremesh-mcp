@@ -4,6 +4,8 @@ import {
   CreateTableCommand,
   DescribeTableCommand,
   ResourceNotFoundException,
+  type KeySchemaElement,
+  type AttributeDefinition,
 } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 
@@ -11,6 +13,7 @@ export const TABLES = {
   checkIns: process.env.CHECKINS_TABLE ?? "caremesh-checkins",
   medicationEvents: process.env.MEDICATION_TABLE ?? "caremesh-medication-events",
   careTasks: process.env.TASKS_TABLE ?? "caremesh-care-tasks",
+  households: process.env.HOUSEHOLDS_TABLE ?? "caremesh-households",
 } as const;
 
 const isLocal = Boolean(process.env.DYNAMODB_ENDPOINT);
@@ -25,19 +28,41 @@ const rawClient = new DynamoDBClient({
 
 export const ddb = DynamoDBDocumentClient.from(rawClient);
 
+interface TableSpec {
+  name: string;
+  keySchema: KeySchemaElement[];
+  attributeDefinitions: AttributeDefinition[];
+}
+
+const TABLE_SPECS: TableSpec[] = [
+  { name: TABLES.checkIns, sortKey: "timestamp" },
+  { name: TABLES.medicationEvents, sortKey: "timestamp" },
+  { name: TABLES.careTasks, sortKey: "id" },
+].map(({ name, sortKey }) => ({
+  name,
+  keySchema: [
+    { AttributeName: "person", KeyType: "HASH" },
+    { AttributeName: sortKey, KeyType: "RANGE" },
+  ],
+  attributeDefinitions: [
+    { AttributeName: "person", AttributeType: "S" },
+    { AttributeName: sortKey, AttributeType: "S" },
+  ],
+}));
+
+TABLE_SPECS.push({
+  name: TABLES.households,
+  keySchema: [{ AttributeName: "household", KeyType: "HASH" }],
+  attributeDefinitions: [{ AttributeName: "household", AttributeType: "S" }],
+});
+
 /**
- * Idempotently creates the three tables against DYNAMODB_ENDPOINT. Only meant for local dev /
- * CI against DynamoDB Local — a real deployment provisions tables ahead of time (see README),
+ * Idempotently creates the tables against DYNAMODB_ENDPOINT. Only meant for local dev / CI
+ * against DynamoDB Local — a real deployment provisions tables ahead of time (see README),
  * since the app's IAM role shouldn't need CreateTable permission in production.
  */
 export async function ensureLocalTablesExist(): Promise<void> {
-  const tables: Array<{ name: string; sortKey: string }> = [
-    { name: TABLES.checkIns, sortKey: "timestamp" },
-    { name: TABLES.medicationEvents, sortKey: "timestamp" },
-    { name: TABLES.careTasks, sortKey: "id" },
-  ];
-
-  for (const { name, sortKey } of tables) {
+  for (const { name, keySchema, attributeDefinitions } of TABLE_SPECS) {
     const exists = await rawClient
       .send(new DescribeTableCommand({ TableName: name }))
       .then(() => true)
@@ -50,14 +75,8 @@ export async function ensureLocalTablesExist(): Promise<void> {
     await rawClient.send(
       new CreateTableCommand({
         TableName: name,
-        AttributeDefinitions: [
-          { AttributeName: "person", AttributeType: "S" },
-          { AttributeName: sortKey, AttributeType: "S" },
-        ],
-        KeySchema: [
-          { AttributeName: "person", KeyType: "HASH" },
-          { AttributeName: sortKey, KeyType: "RANGE" },
-        ],
+        AttributeDefinitions: attributeDefinitions,
+        KeySchema: keySchema,
         BillingMode: "PAY_PER_REQUEST",
       }),
     );

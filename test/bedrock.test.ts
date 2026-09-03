@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fallbackSummary } from "../src/bedrock.js";
+import { fallbackHouseholdSummary, fallbackSummary } from "../src/bedrock.js";
 
 const base = { person: "Mom", date: "2026-09-10" };
 
@@ -32,4 +32,30 @@ test("calls out no check-ins, missed meds, and open tasks", () => {
   assert.match(text, /No check-ins recorded/);
   assert.match(text, /1 medication dose\(s\) were missed: Lisinopril/);
   assert.match(text, /1 care task\(s\) still open: Refill prescription/);
+});
+
+test("fallbackHouseholdSummary combines each member's fallback summary, naming each person", () => {
+  const text = fallbackHouseholdSummary({
+    household: "Smith Family",
+    date: "2026-09-10",
+    members: [
+      {
+        person: "Mom",
+        date: "2026-09-10",
+        checkIns: [{ id: "1", person: "Mom", mood: "good", timestamp: "2026-09-10T09:00:00.000Z" }],
+        medicationEvents: [],
+        careTasks: [],
+      },
+      {
+        person: "Dad",
+        date: "2026-09-10",
+        checkIns: [],
+        medicationEvents: [],
+        careTasks: [],
+      },
+    ],
+  });
+  assert.match(text, /^Mom: /);
+  assert.match(text, /checked in 1 time/);
+  assert.match(text, /Dad: No check-ins recorded for Dad today\./);
 });

@@ -1,8 +1,17 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { addCareTask, addCheckIn, addMedicationEvent, getDayData, getRecentActivity, listCareTasks } from "../store.js";
-import { generateDailySummary } from "../bedrock.js";
-import { computeAlerts } from "../alerts.js";
+import {
+  addCareTask,
+  addCheckIn,
+  addHouseholdMember,
+  addMedicationEvent,
+  getDayData,
+  getRecentActivity,
+  listCareTasks,
+  listHouseholdMembers,
+} from "../store.js";
+import { generateDailySummary, generateHouseholdSummary } from "../bedrock.js";
+import { computeAlerts, computeHouseholdAlerts } from "../alerts.js";
 
 function textResult(text: string) {
   return { content: [{ type: "text" as const, text }] };
@@ -113,6 +122,97 @@ export function registerCaretakingTools(server: McpServer): void {
       const alerts = computeAlerts(person, checkIns, medicationEvents);
       return textResult(
         alerts.length > 0 ? `Alerts for ${person}:\n- ${alerts.join("\n- ")}` : `No alerts for ${person}.`,
+      );
+    },
+  );
+
+  server.registerTool(
+    "add_household_member",
+    {
+      title: "Add a household member",
+      description:
+        "Add a person to a household, so household-level tools can cover them. Creates the household if it doesn't exist yet.",
+      inputSchema: {
+        household: z.string().describe("Name of the household, e.g. 'Smith Family'"),
+        person: z.string().describe("Name of the person being cared for to add to this household"),
+      },
+    },
+    async ({ household, person }) => {
+      await addHouseholdMember(household, person);
+      return textResult(`Added ${person} to household "${household}".`);
+    },
+  );
+
+  server.registerTool(
+    "list_household_members",
+    {
+      title: "List household members",
+      description: "List everyone currently in a household.",
+      inputSchema: {
+        household: z.string().describe("Name of the household"),
+      },
+    },
+    async ({ household }) => {
+      const members = await listHouseholdMembers(household);
+      return textResult(
+        members.length > 0
+          ? `Household "${household}": ${members.join(", ")}.`
+          : `Household "${household}" has no members yet — use add_household_member to add one.`,
+      );
+    },
+  );
+
+  server.registerTool(
+    "get_household_summary",
+    {
+      title: "Get a household-level daily summary",
+      description:
+        "Generate one natural-language summary covering every member of a household for a given day (defaults to today).",
+      inputSchema: {
+        household: z.string().describe("Name of the household"),
+        date: z.string().optional().describe("ISO date (YYYY-MM-DD); defaults to today"),
+      },
+    },
+    async ({ household, date }) => {
+      const members = await listHouseholdMembers(household);
+      if (members.length === 0) {
+        return textResult(`Household "${household}" has no members yet — use add_household_member to add one.`);
+      }
+      const isoDate = date ?? new Date().toISOString().slice(0, 10);
+      const memberSnapshots = await Promise.all(
+        members.map(async (person) => ({ person, date: isoDate, ...(await getDayData(person, isoDate)) })),
+      );
+      const { summary, source } = await generateHouseholdSummary({
+        household,
+        date: isoDate,
+        members: memberSnapshots,
+      });
+      return textResult(`${summary}\n\n(source: ${source})`);
+    },
+  );
+
+  server.registerTool(
+    "get_household_alerts",
+    {
+      title: "Get household-level alerts",
+      description: "Flag concerning gaps (missed check-ins or medication) across every member of a household at once.",
+      inputSchema: {
+        household: z.string().describe("Name of the household"),
+      },
+    },
+    async ({ household }) => {
+      const members = await listHouseholdMembers(household);
+      if (members.length === 0) {
+        return textResult(`Household "${household}" has no members yet — use add_household_member to add one.`);
+      }
+      const memberActivity = await Promise.all(
+        members.map(async (person) => ({ person, ...(await getRecentActivity(person)) })),
+      );
+      const alerts = computeHouseholdAlerts(memberActivity);
+      return textResult(
+        alerts.length > 0
+          ? `Alerts for household "${household}":\n- ${alerts.join("\n- ")}`
+          : `No alerts for household "${household}".`,
       );
     },
   );

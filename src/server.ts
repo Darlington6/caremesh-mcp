@@ -55,6 +55,11 @@ app.use("/mcp", (req, res, next) => {
     next();
     return;
   }
+  // RFC 7235 requires a WWW-Authenticate header on 401s. Also makes it explicit to any client
+  // that this is a plain bearer token, not an OAuth-protected resource — this server doesn't
+  // implement MCP's OAuth flow (see docs/ARCHITECTURE.md for why), so a client that tries OAuth
+  // discovery here (e.g. POSTing to a dynamic client registration endpoint) will 404.
+  res.set("WWW-Authenticate", 'Bearer realm="caremesh-mcp"');
   res.status(401).json({ jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized" }, id: null });
 });
 

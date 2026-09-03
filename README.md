@@ -19,6 +19,7 @@ Caremesh gives that coordination a voice-first front end instead of another app 
 - **Remote adult child.** Checks in on an aging parent by voice through Alexa+ each morning; later in the day asks for a summary before calling them, instead of guessing how things are going.
 - **Rotating family caregivers.** Multiple people share medication and task-logging duties across a week; `list_care_tasks` and `get_alerts` give whoever's on duty a shared, current picture instead of a group chat scroll.
 - **Home health aide.** Logs a visit's check-in and medication status on the way out, so the family has a record without the aide needing to file a separate report.
+- **Someone caring for both parents at once.** A household groups multiple people together (`add_household_member`) so `get_household_summary`/`get_household_alerts` cover everyone in one voice request instead of asking about each person separately.
 
 ## Hackathon submission info
 
@@ -27,22 +28,32 @@ Caremesh gives that coordination a voice-first front end instead of another app 
 
 ## Tools exposed
 
-| Tool                | Description                                                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `log_checkin`       | Record a check-in for a person, with optional note/mood.                                                                         |
-| `log_medication`    | Record a medication dose as taken or missed.                                                                                     |
-| `add_care_task`     | Add a shared caretaking task.                                                                                                    |
-| `list_care_tasks`   | List a person's care tasks.                                                                                                      |
-| `get_daily_summary` | Natural-language summary of a day's check-ins/meds/tasks (Bedrock-generated, with a local fallback if Bedrock isn't configured). |
-| `get_alerts`        | Flags a missed check-in or an unresolved missed medication dose.                                                                 |
+| Tool                     | Description                                                                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `log_checkin`            | Record a check-in for a person, with optional note/mood.                                                                         |
+| `log_medication`         | Record a medication dose as taken or missed.                                                                                     |
+| `add_care_task`          | Add a shared caretaking task.                                                                                                    |
+| `list_care_tasks`        | List a person's care tasks.                                                                                                      |
+| `get_daily_summary`      | Natural-language summary of a day's check-ins/meds/tasks (Bedrock-generated, with a local fallback if Bedrock isn't configured). |
+| `get_alerts`             | Flags a missed check-in or an unresolved missed medication dose.                                                                 |
+| `add_household_member`   | Add a person to a household (creates the household if needed).                                                                   |
+| `list_household_members` | List everyone in a household.                                                                                                    |
+| `get_household_summary`  | One natural-language summary covering every member of a household for a given day.                                               |
+| `get_household_alerts`   | Alerts across every member of a household at once, not just one person.                                                          |
 
 ## Running it
 
-Data is stored in **Amazon DynamoDB**. Locally (and in CI) that means [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) in Docker — no AWS account needed to run or test this:
+**Prerequisites:** [Docker](https://www.docker.com/) and Node (`.nvmrc` pins the exact version — `nvm use` if you have nvm).
+
+Data is stored in **Amazon DynamoDB**. Locally (and in CI) that means [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) in Docker — no AWS account needed to run or test this. Start it once, and it's a named container you can safely re-run this same command against later (starts it back up if it's stopped, does nothing if it's already running):
 
 ```bash
-docker run -d -p 8000:8000 amazon/dynamodb-local:latest
+docker start caremesh-dynamodb-local 2>/dev/null || docker run -d --name caremesh-dynamodb-local -p 8000:8000 amazon/dynamodb-local:latest
+```
 
+Then, one-time setup:
+
+```bash
 cp .env.example .env   # DYNAMODB_ENDPOINT already points at the container above
 npm install
 npm run build
@@ -51,6 +62,8 @@ npm start
 ```
 
 The server creates its DynamoDB tables automatically on startup _only_ when `DYNAMODB_ENDPOINT` is set (i.e. local/CI) — a real deployment provisions tables ahead of time instead (see [Deploying](#deploying-amazon-ecs-express-mode)).
+
+Every time you come back to work on this after a reboot or a while away, you only need the `docker start ... || docker run ...` line above (DynamoDB Local) and `npm start` (or `npm run dev`) — `npm install`/`cp .env.example .env` are one-time.
 
 Or for local development with auto-reload: `npm run dev`.
 
@@ -66,6 +79,8 @@ In the Inspector UI: set **Transport Type** to `Streamable HTTP` (not the defaul
 
 Connecting to a deployed instance instead of localhost? If `MCP_AUTH_TOKEN` is set there, add an `Authorization: Bearer <token>` custom header in Inspector's connection settings, or every request gets a 401.
 
+**If Inspector shows "Dynamic Client Registration rejected (HTTP 404): Cannot POST /register"** instead of a clean 401: that's Inspector itself, not this server misbehaving. On an unauthenticated request that gets a 401, Inspector tries to bootstrap MCP's OAuth flow (a `POST /register` dynamic-client-registration call) — this server intentionally implements a plain bearer token instead of full OAuth (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#design-decisions) for why), so that endpoint doesn't exist and Inspector surfaces its own failed OAuth attempt rather than the underlying 401. The fix is the same either way: add the `Authorization: Bearer <token>` header manually rather than relying on Inspector's auto-auth. (`curl`, and any client that just sends the header you give it, shows the real 401 correctly.)
+
 ### Scripted demo
 
 `npm run demo` boots the server against a fresh set of DynamoDB tables (unique names per run, so it's repeatable), drives every tool through a realistic caretaking scenario as an MCP client, and prints each step — this is what the hackathon demo video walks through. Requires DynamoDB Local running (see above).
@@ -73,7 +88,7 @@ Connecting to a deployed instance instead of localhost? If `MCP_AUTH_TOKEN` is s
 ### Tests, linting, formatting
 
 ```bash
-npm test            # unit tests (node:test) — alerts, fallback summary, the store
+npm test            # unit tests (node:test) — alerts, fallback summary, the store, auth, households
 npm run typecheck   # type-checks src, test, and scripts
 npm run lint         # ESLint
 npm run format:check # Prettier check (npm run format to auto-fix)
@@ -83,7 +98,7 @@ All four run in CI on every push/PR (against a DynamoDB Local service container)
 
 ## AWS Bedrock setup (for the AWS Builder mini-challenge)
 
-The `get_daily_summary` tool calls Amazon Bedrock's Converse API (see [`src/bedrock.ts`](src/bedrock.ts)) to turn a day's structured events into a short caregiver-facing summary. If no AWS credentials/region are configured, it transparently falls back to a local, deterministic summary so the server still runs standalone — the response says which path (`bedrock` or `fallback`) produced the summary.
+The `get_daily_summary` and `get_household_summary` tools call Amazon Bedrock's Converse API (see [`src/bedrock.ts`](src/bedrock.ts)) to turn a day's structured events into a short caregiver-facing summary. If no AWS credentials/region are configured, both transparently fall back to a local, deterministic summary so the server still runs standalone — the response says which path (`bedrock` or `fallback`) produced the summary.
 
 To enable real Bedrock calls:
 
@@ -99,7 +114,7 @@ For a live demo link, this deploys as a container to Amazon ECS Express Mode —
 
 1. AWS CLI installed and configured (`aws configure`) with an account that has ECS/ECR/IAM/DynamoDB permissions.
 2. An ECR repository: `aws ecr create-repository --repository-name caremesh-mcp`
-3. The three DynamoDB tables (production doesn't auto-create tables — see [Architecture](#architecture) for why):
+3. The four DynamoDB tables (production doesn't auto-create tables — see [Architecture](#architecture) for why):
    ```bash
    for table in caremesh-checkins caremesh-medication-events; do
      aws dynamodb create-table --table-name "$table" \
@@ -111,6 +126,10 @@ For a live demo link, this deploys as a container to Amazon ECS Express Mode —
      --attribute-definitions AttributeName=person,AttributeType=S AttributeName=id,AttributeType=S \
      --key-schema AttributeName=person,KeyType=HASH AttributeName=id,KeyType=RANGE \
      --billing-mode PAY_PER_REQUEST
+   aws dynamodb create-table --table-name caremesh-households \
+     --attribute-definitions AttributeName=household,AttributeType=S \
+     --key-schema AttributeName=household,KeyType=HASH \
+     --billing-mode PAY_PER_REQUEST
    ```
 4. An auth token, stored as a secret rather than plaintext (the app requires `Authorization: Bearer <token>` on `/mcp` whenever `MCP_AUTH_TOKEN` is set — see [Known limitations](#known-limitations)):
    ```bash
@@ -121,7 +140,7 @@ For a live demo link, this deploys as a container to Amazon ECS Express Mode —
 5. Two IAM roles ECS Express Mode requires:
    - `ecsTaskExecutionRole` — standard ECS role with the `AmazonECSTaskExecutionRolePolicy` managed policy attached (pulls the image, writes logs), **plus** an inline policy granting `secretsmanager:GetSecretValue` on the secret above — the execution role, not the task role, is what ECS uses to inject `secrets` into the container at startup.
    - `ecsInfrastructureRoleForExpressServices` — see [ECS Express Mode setup](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/express-service-getting-started.html#express-service-create-execution-role) for the exact trust policy.
-6. A **task role** (application-level permissions, separate from the execution role above) with a policy allowing `bedrock:InvokeModel` on the model in `.env`'s `BEDROCK_MODEL_ID`, and `dynamodb:GetItem`/`PutItem`/`Query` on the three table ARNs above — this is what lets the deployed container call Bedrock and DynamoDB without embedding access keys; the AWS SDK picks both up automatically via the container credentials chain.
+6. A **task role** (application-level permissions, separate from the execution role above) with a policy allowing `bedrock:InvokeModel` on the model in `.env`'s `BEDROCK_MODEL_ID`, and `dynamodb:GetItem`/`PutItem`/`Query`/`UpdateItem` on the four table ARNs above (`UpdateItem` is only needed on `caremesh-households`, for `add_household_member`) — this is what lets the deployed container call Bedrock and DynamoDB without embedding access keys; the AWS SDK picks both up automatically via the container credentials chain.
 7. A CloudWatch log group, e.g. `aws logs create-log-group --log-group-name /ecs/caremesh-mcp`
 
 **Build and push the image:**
