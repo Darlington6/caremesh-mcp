@@ -10,4 +10,4 @@ Please report security issues privately via [GitHub's private vulnerability repo
 
 - The server has no authentication layer by default — anyone who can reach `/mcp` can read and write data. Do not deploy it publicly with real personal data without adding auth in front of it (e.g. an API gateway, a reverse proxy with auth, or MCP's OAuth support).
 - `/mcp` is rate-limited (see `src/server.ts`); `/healthz` is not, since it's expected to be hit by load balancer health checks.
-- AWS credentials for Bedrock are never read from request input — only from the environment / IAM role, per the AWS SDK's standard credential chain.
+- AWS credentials for Bedrock and DynamoDB are never read from request input — only from the environment / IAM role, per the AWS SDK's standard credential chain. In production the app's IAM task role is scoped to the specific actions it uses (`bedrock:InvokeModel`, DynamoDB read/write on the three named tables) — it does not have `CreateTable`/`DeleteTable` permissions.

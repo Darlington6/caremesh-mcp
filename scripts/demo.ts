@@ -2,17 +2,16 @@
  * Boots the MCP server, walks through a full caretaking scenario as an MCP client,
  * and prints each step. Built to be run on camera for the hackathon demo video.
  */
+import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 const PORT = Number(process.env.PORT ?? 3100);
 const BASE_URL = `http://localhost:${PORT}`;
-// Fresh data file per run so the demo is repeatable (doesn't accumulate state across takes).
-const DEMO_DATA_FILE = join(mkdtempSync(join(tmpdir(), "caremesh-demo-")), "store.json");
+const DYNAMODB_ENDPOINT = process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8000";
+// Fresh table names per run so the demo is repeatable (doesn't accumulate state across takes).
+const RUN_ID = randomUUID().slice(0, 8);
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -33,7 +32,14 @@ async function waitForHealthy(retries = 30): Promise<void> {
 
 function startServer(): ChildProcess {
   const child = spawn("node", ["dist/server.js"], {
-    env: { ...process.env, PORT: String(PORT), DATA_FILE: DEMO_DATA_FILE },
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      DYNAMODB_ENDPOINT,
+      CHECKINS_TABLE: `demo-checkins-${RUN_ID}`,
+      MEDICATION_TABLE: `demo-medication-events-${RUN_ID}`,
+      TASKS_TABLE: `demo-care-tasks-${RUN_ID}`,
+    },
     stdio: "inherit",
   });
   return child;

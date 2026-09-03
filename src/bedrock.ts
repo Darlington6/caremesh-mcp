@@ -1,3 +1,4 @@
+import "./env.js";
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import type { CareTask, CheckIn, MedicationEvent } from "./types.js";
 

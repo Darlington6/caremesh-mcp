@@ -1,18 +1,13 @@
+import "./env.js";
 import express from "express";
 import { randomUUID } from "node:crypto";
-
-try {
-  process.loadEnvFile();
-} catch {
-  // no .env file present — fine, fall back to whatever's already in the environment
-}
-
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { registerCaretakingTools } from "./mcp/tools.js";
+import { ensureLocalTablesExist } from "./dynamodb.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -93,6 +88,12 @@ app.delete("/mcp", async (req, res) => {
 app.get("/healthz", (_req, res) => {
   res.json({ status: "ok", activeSessions: transports.size });
 });
+
+// DYNAMODB_ENDPOINT is only set for local dev / CI against DynamoDB Local — a real deployment
+// provisions tables ahead of time, so the app's IAM role doesn't need CreateTable permission.
+if (process.env.DYNAMODB_ENDPOINT) {
+  await ensureLocalTablesExist();
+}
 
 const server = app.listen(PORT, () => {
   console.log(`caremesh-mcp listening on http://localhost:${PORT} (MCP endpoint: POST /mcp)`);

@@ -6,6 +6,7 @@ Thanks for taking a look. This started as a hackathon project, but issues, pull 
 
 ```bash
 nvm use          # picks up the version in .nvmrc
+docker run -d -p 8000:8000 amazon/dynamodb-local:latest
 npm install
 cp .env.example .env
 npm run build

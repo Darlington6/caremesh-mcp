@@ -11,14 +11,15 @@ flowchart LR
         B["Streamable HTTP transport<br/>one session per mcp-session-id"]
         C["MCP tool handlers<br/>src/mcp/tools.ts"]
         D["alerts.ts<br/>pure alert logic"]
-        E["store.ts<br/>JSON file, serialized writes"]
+        E["store.ts<br/>data access layer"]
         F["bedrock.ts<br/>Converse call + local fallback"]
     end
     G[("Amazon Bedrock")]
+    H[("Amazon DynamoDB")]
 
     A -- "JSON-RPC over HTTP / SSE" --> B --> C
     C --> D
-    C --> E
+    C --> E --> H
     C --> F --> G
 ```
 
@@ -63,7 +64,7 @@ Three flat, append-only event types, each scoped by `person` (see `src/types.ts`
 - **MedicationEvent** — `person`, `medication`, `taken`, `timestamp`
 - **CareTask** — `person`, `task`, optional `due`, `done`, `createdAt`
 
-`store.ts` persists these to a single JSON file (`data/store.json` by default, `DATA_FILE` env override for tests/demos), with writes serialized through a promise queue so concurrent tool calls can't race a read-modify-write cycle (see the `concurrent writes don't clobber each other` test in `test/store.test.ts`).
+`store.ts` persists these to three DynamoDB tables (one per type), each keyed by `person` (partition key) plus `timestamp` for check-ins/medication events or `id` for care tasks (`src/dynamodb.ts`). Locally and in CI this points at [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) via `DYNAMODB_ENDPOINT`; a real deployment omits that env var so the AWS SDK talks to regional DynamoDB using the task's IAM role instead. DynamoDB's own per-item atomicity is what replaces the JSON-file version's write-serialization queue (see the `concurrent writes don't clobber each other` test in `test/store.test.ts`).
 
 ## Design decisions
 
@@ -71,8 +72,12 @@ Three flat, append-only event types, each scoped by `person` (see `src/types.ts`
 
 **In-memory session state, single instance.** `transports` is a plain `Map` in `server.ts`. That's correct for a hackathon-scale deployment but means the server can only run as **one instance** — see the `minTaskCount`/`maxTaskCount: 1` pinning in the [deployment docs](../README.md#deploying-amazon-ecs-express-mode). Scaling beyond one instance would need session state moved to something shared (DynamoDB, Redis) so any instance behind the load balancer can serve any session.
 
-**JSON file store, not a managed database.** Deliberately minimal for this scope — the interesting AWS integration here is Bedrock, not the datastore. `store.ts` is the single seam where this would swap to DynamoDB if this went past a demo; nothing else in the codebase depends on the storage mechanism.
+**DynamoDB, provisioned ahead of time in production.** The app never calls `CreateTable` against real AWS — `ensureLocalTablesExist` (`dynamodb.ts`) only runs when `DYNAMODB_ENDPOINT` is set, which is exclusively the local/CI case. A real deployment provisions the three tables via the AWS CLI first (see the [deployment docs](../README.md#deploying-amazon-ecs-express-mode)), so the app's IAM task role never needs `CreateTable`/`DeleteTable` permissions — only the read/write actions it actually uses.
+
+**Three tables, not one single-table design.** DynamoDB best practice often favors a single table for related entities, but the three event types here have genuinely different query shapes — check-ins/medication events are queried by day (`begins_with` on an ISO timestamp sort key), while care tasks are queried by person with no date dimension. Three tables map directly onto `store.ts`'s existing three-array data model and read more clearly than one table carrying a synthetic composite sort key, which matters more than idiomatic-DynamoDB-ness at this scale.
 
 **Bedrock call with a local fallback, not a hard dependency.** `bedrock.ts` only attempts a real Bedrock call when AWS credentials/region are present, and falls back to a deterministic local summary on any failure (missing credentials, network, throttling). This keeps the server runnable and testable with zero AWS setup, while the Bedrock path is a real, documented integration rather than a placeholder — `get_daily_summary`'s response reports which path (`bedrock` or `fallback`) actually produced the text.
+
+**`env.ts` imported first, not `.env` loaded ad hoc.** ES module imports evaluate before the importing file's own top-level code runs, regardless of where a same-file "load `.env`" call is textually placed — so loading it once in `server.ts` isn't early enough for modules `server.ts` transitively imports (e.g. `bedrock.ts`'s module-level `AWS_REGION`/`BEDROCK_MODEL_ID` constants, read at import time). `env.ts` is a side-effect-only module with no imports of its own, and every module that reads `process.env` at its own top level imports it first, guaranteeing `.env` is loaded before that read happens regardless of the module's position in the overall dependency graph.
 
 **Pure functions for anything worth testing.** `computeAlerts` (`alerts.ts`) and `fallbackSummary` (`bedrock.ts`) are both plain functions with no I/O, so they're unit tested directly (`test/alerts.test.ts`, `test/bedrock.test.ts`) without needing to spin up the MCP transport or a real server.
