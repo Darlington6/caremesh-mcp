@@ -64,6 +64,8 @@ npx @modelcontextprotocol/inspector@latest
 
 In the Inspector UI: set **Transport Type** to `Streamable HTTP` (not the default `STDIO`), set the URL to `http://localhost:3000/mcp`, then click **Connect**. Ignore the pre-filled `Command`/`Arguments` fields — those are only used for the STDIO transport. Once connected, the **Tools** tab lists and lets you call each tool above.
 
+Connecting to a deployed instance instead of localhost? If `MCP_AUTH_TOKEN` is set there, add an `Authorization: Bearer <token>` custom header in Inspector's connection settings, or every request gets a 401.
+
 ### Scripted demo
 
 `npm run demo` boots the server against a fresh set of DynamoDB tables (unique names per run, so it's repeatable), drives every tool through a realistic caretaking scenario as an MCP client, and prints each step — this is what the hackathon demo video walks through. Requires DynamoDB Local running (see above).
@@ -110,11 +112,17 @@ For a live demo link, this deploys as a container to Amazon ECS Express Mode —
      --key-schema AttributeName=person,KeyType=HASH AttributeName=id,KeyType=RANGE \
      --billing-mode PAY_PER_REQUEST
    ```
-4. Two IAM roles ECS Express Mode requires:
-   - `ecsTaskExecutionRole` — standard ECS role with the `AmazonECSTaskExecutionRolePolicy` managed policy attached (pulls the image, writes logs).
+4. An auth token, stored as a secret rather than plaintext (the app requires `Authorization: Bearer <token>` on `/mcp` whenever `MCP_AUTH_TOKEN` is set — see [Known limitations](#known-limitations)):
+   ```bash
+   TOKEN=$(openssl rand -hex 32)
+   aws secretsmanager create-secret --name caremesh-mcp/auth-token --secret-string "$TOKEN"
+   # save $TOKEN somewhere safe — you'll hand it to whatever MCP client (Alexa+, Inspector) calls the deployed server
+   ```
+5. Two IAM roles ECS Express Mode requires:
+   - `ecsTaskExecutionRole` — standard ECS role with the `AmazonECSTaskExecutionRolePolicy` managed policy attached (pulls the image, writes logs), **plus** an inline policy granting `secretsmanager:GetSecretValue` on the secret above — the execution role, not the task role, is what ECS uses to inject `secrets` into the container at startup.
    - `ecsInfrastructureRoleForExpressServices` — see [ECS Express Mode setup](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/express-service-getting-started.html#express-service-create-execution-role) for the exact trust policy.
-5. A **task role** (application-level permissions, separate from the execution role above) with a policy allowing `bedrock:InvokeModel` on the model in `.env`'s `BEDROCK_MODEL_ID`, and `dynamodb:GetItem`/`PutItem`/`Query` on the three table ARNs above — this is what lets the deployed container call Bedrock and DynamoDB without embedding access keys; the AWS SDK picks both up automatically via the container credentials chain.
-6. A CloudWatch log group, e.g. `aws logs create-log-group --log-group-name /ecs/caremesh-mcp`
+6. A **task role** (application-level permissions, separate from the execution role above) with a policy allowing `bedrock:InvokeModel` on the model in `.env`'s `BEDROCK_MODEL_ID`, and `dynamodb:GetItem`/`PutItem`/`Query` on the three table ARNs above — this is what lets the deployed container call Bedrock and DynamoDB without embedding access keys; the AWS SDK picks both up automatically via the container credentials chain.
+7. A CloudWatch log group, e.g. `aws logs create-log-group --log-group-name /ecs/caremesh-mcp`
 
 **Build and push the image:**
 
@@ -140,6 +148,9 @@ aws ecs create-express-gateway-service \
     "environment": [
       { "name": "AWS_REGION", "value": "<region>" },
       { "name": "BEDROCK_MODEL_ID", "value": "anthropic.claude-3-5-sonnet-20241022-v2:0" }
+    ],
+    "secrets": [
+      { "name": "MCP_AUTH_TOKEN", "valueFrom": "arn:aws:secretsmanager:<region>:<account-id>:secret:caremesh-mcp/auth-token" }
     ]
   }' \
   --health-check-path "/healthz" \
@@ -179,7 +190,7 @@ Dockerfile                 Multi-stage build for container deployment (see Deplo
 
 ## Known limitations
 
-- **No authentication.** Anyone who can reach `/mcp` can read/write data — fine for a local or demo deployment, not for real personal data. See [SECURITY.md](SECURITY.md).
+- **Auth is opt-in, not enforced.** Setting `MCP_AUTH_TOKEN` requires `Authorization: Bearer <token>` on every `/mcp` request (see `src/server.ts`) — but it's unset by default locally so Inspector/the demo script work with zero setup. A real deployment must set it explicitly (see [Deploying](#deploying-amazon-ecs-express-mode)); nothing stops someone from deploying without it. See [SECURITY.md](SECURITY.md).
 - **Single-instance only.** Session state is in-memory; running more than one instance would break session continuity without adding a shared session store.
 
 ## Contributing

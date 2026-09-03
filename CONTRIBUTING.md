@@ -15,6 +15,10 @@ npm test
 
 See the [README](README.md) for how to run the server, exercise it with MCP Inspector, and run the scripted demo.
 
+## Branch workflow
+
+`main` is protected (no force-push, no deletion, `build-and-test` must pass) and is always the submittable state. Ongoing work happens on `dev`; open a PR from `dev` into `main` when it's stable rather than pushing to `main` directly. This isn't a multi-environment setup — there's one deployment target — it's just a review checkpoint before `main` changes.
+
 ## Before opening a PR
 
 ```bash
