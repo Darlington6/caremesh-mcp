@@ -39,24 +39,26 @@ export function fallbackSummary(snapshot: DaySnapshot): string {
   parts.push(
     checkIns.length > 0
       ? `${person} checked in ${checkIns.length} time(s) today${checkIns[checkIns.length - 1]?.mood ? `, most recently feeling ${checkIns[checkIns.length - 1].mood}` : ""}.`
-      : `No check-ins recorded for ${person} today.`
+      : `No check-ins recorded for ${person} today.`,
   );
   parts.push(
     missedMeds.length > 0
       ? `${missedMeds.length} medication dose(s) were missed: ${missedMeds.map((m) => m.medication).join(", ")}.`
       : medicationEvents.length > 0
         ? "All logged medications were taken."
-        : "No medication events logged today."
+        : "No medication events logged today.",
   );
   parts.push(
     openTasks.length > 0
       ? `${openTasks.length} care task(s) still open: ${openTasks.map((t) => t.task).join(", ")}.`
-      : "No open care tasks."
+      : "No open care tasks.",
   );
   return parts.join(" ");
 }
 
-export async function generateDailySummary(snapshot: DaySnapshot): Promise<{ summary: string; source: "bedrock" | "fallback" }> {
+export async function generateDailySummary(
+  snapshot: DaySnapshot,
+): Promise<{ summary: string; source: "bedrock" | "fallback" }> {
   if (!process.env.AWS_REGION && !process.env.AWS_PROFILE && !process.env.AWS_ACCESS_KEY_ID) {
     return { summary: fallbackSummary(snapshot), source: "fallback" };
   }
@@ -66,7 +68,7 @@ export async function generateDailySummary(snapshot: DaySnapshot): Promise<{ sum
       new ConverseCommand({
         modelId: MODEL_ID,
         messages: [{ role: "user", content: [{ text: buildPrompt(snapshot) }] }],
-      })
+      }),
     );
     const text = response.output?.message?.content?.map((c) => c.text ?? "").join("") ?? "";
     if (!text.trim()) throw new Error("empty Bedrock response");

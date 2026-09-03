@@ -7,6 +7,8 @@ try {
   // no .env file present — fine, fall back to whatever's already in the environment
 }
 
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
@@ -21,7 +23,20 @@ function buildServer(): McpServer {
 }
 
 const app = express();
+app.use(helmet());
 app.use(express.json());
+
+// Public-facing endpoint (this is what a deployed instance exposes to the internet) — rate limited
+// to blunt casual abuse. /healthz is exempt since ECS/ALB health checks hit it continuously.
+app.use(
+  "/mcp",
+  rateLimit({
+    windowMs: 60_000,
+    limit: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+  }),
+);
 
 const transports = new Map<string, StreamableHTTPServerTransport>();
 
@@ -44,7 +59,11 @@ app.post("/mcp", async (req, res) => {
   }
 
   if (!transport) {
-    res.status(400).json({ jsonrpc: "2.0", error: { code: -32000, message: "No valid session; send an initialize request first." }, id: null });
+    res.status(400).json({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "No valid session; send an initialize request first." },
+      id: null,
+    });
     return;
   }
 
@@ -75,6 +94,16 @@ app.get("/healthz", (_req, res) => {
   res.json({ status: "ok", activeSessions: transports.size });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`caremesh-mcp listening on http://localhost:${PORT} (MCP endpoint: POST /mcp)`);
 });
+
+async function shutdown(signal: string): Promise<void> {
+  console.log(`\n${signal} received, shutting down...`);
+  server.close();
+  await Promise.all([...transports.values()].map((t) => t.close()));
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));

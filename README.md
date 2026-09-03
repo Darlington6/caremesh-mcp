@@ -6,6 +6,20 @@ A self-hosted **Model Context Protocol (MCP)** server (spec `2025-11-25`+, Strea
 
 A family or caregiver logs check-ins, medication, and shared care tasks for a person they look after. An Alexa+ agent (or any MCP client) can call the server's tools to record events and pull a natural-language daily summary — generated via **Amazon Bedrock** — plus alerts for missed check-ins or medication.
 
+## The problem
+
+Informal caregiving is coordination work, and it's usually invisible: an adult child checking on a parent, siblings splitting medication reminders, a home aide covering a rotating schedule. That coordination tends to live in scattered text threads, sticky notes, or someone's memory — there's no shared, low-friction record of "did the check-in happen today" or "was the medication actually taken," and gaps only surface after they've already caused a problem.
+
+## The solution
+
+Caremesh gives that coordination a voice-first front end instead of another app to open. Because it's an MCP server, an Alexa+ agent can log a check-in or a medication dose the moment it happens — no typing, no app switch — and later answer "how's Mom doing today?" with a real, Bedrock-generated summary pulled from what was actually logged, or flag that something's been missed. The MCP layer also means it isn't locked to Alexa+: any MCP-compatible client can drive the same tools.
+
+## Use cases
+
+- **Remote adult child.** Checks in on an aging parent by voice through Alexa+ each morning; later in the day asks for a summary before calling them, instead of guessing how things are going.
+- **Rotating family caregivers.** Multiple people share medication and task-logging duties across a week; `list_care_tasks` and `get_alerts` give whoever's on duty a shared, current picture instead of a group chat scroll.
+- **Home health aide.** Logs a visit's check-in and medication status on the way out, so the family has a record without the aide needing to file a separate report.
+
 ## Hackathon submission info
 
 - **Primary track**: Alexa+, via a self-hosted MCP server over Streamable HTTP (not an Agent Skill).
@@ -13,14 +27,14 @@ A family or caregiver logs check-ins, medication, and shared care tasks for a pe
 
 ## Tools exposed
 
-| Tool | Description |
-|---|---|
-| `log_checkin` | Record a check-in for a person, with optional note/mood. |
-| `log_medication` | Record a medication dose as taken or missed. |
-| `add_care_task` | Add a shared caretaking task. |
-| `list_care_tasks` | List a person's care tasks. |
+| Tool                | Description                                                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `log_checkin`       | Record a check-in for a person, with optional note/mood.                                                                         |
+| `log_medication`    | Record a medication dose as taken or missed.                                                                                     |
+| `add_care_task`     | Add a shared caretaking task.                                                                                                    |
+| `list_care_tasks`   | List a person's care tasks.                                                                                                      |
 | `get_daily_summary` | Natural-language summary of a day's check-ins/meds/tasks (Bedrock-generated, with a local fallback if Bedrock isn't configured). |
-| `get_alerts` | Flags a missed check-in or an unresolved missed medication dose. |
+| `get_alerts`        | Flags a missed check-in or an unresolved missed medication dose.                                                                 |
 
 ## Running it
 
@@ -48,9 +62,16 @@ In the Inspector UI: set **Transport Type** to `Streamable HTTP` (not the defaul
 
 `npm run demo` boots the server against a fresh temp data file, drives every tool through a realistic caretaking scenario as an MCP client, and prints each step — this is what the hackathon demo video walks through.
 
-### Tests
+### Tests, linting, formatting
 
-`npm test` runs the unit test suite (Node's built-in test runner) covering the alerting logic, the fallback summary generator, and the data store. `npm run typecheck` type-checks the whole project (src, tests, and scripts).
+```bash
+npm test            # unit tests (node:test) — alerts, fallback summary, the store
+npm run typecheck   # type-checks src, test, and scripts
+npm run lint         # ESLint
+npm run format:check # Prettier check (npm run format to auto-fix)
+```
+
+All four run in CI on every push/PR. Use `nvm use` first if you have nvm installed — `.nvmrc` pins the Node version this project targets.
 
 ## AWS Bedrock setup (for the AWS Builder mini-challenge)
 
@@ -111,11 +132,15 @@ aws ecs create-express-gateway-service \
 
 The command prints a default public URL once provisioning completes (typically 3-5 minutes) — that becomes the live "Try it out" link, pointing MCP clients at `<url>/mcp`.
 
+## Architecture
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a component diagram, a sequence diagram of a full tool call, the data model, and the reasoning behind the main design decisions (why Streamable HTTP, why a single instance, why the Bedrock fallback exists).
+
 ## Project layout
 
 ```
 src/
-  server.ts       Express app + MCP StreamableHTTPServerTransport wiring
+  server.ts       Express app + MCP StreamableHTTPServerTransport wiring, hardening, graceful shutdown
   mcp/tools.ts    Tool registrations
   store.ts        JSON-file-backed data store
   bedrock.ts      Bedrock Converse wrapper + local fallback summary
@@ -123,8 +148,21 @@ src/
   types.ts
 test/             Unit tests (node:test)
 scripts/demo.ts   Scripted end-to-end demo client (also used for the demo video)
-.github/workflows/ci.yml   Typecheck + build + test on every push/PR
+docs/ARCHITECTURE.md       Diagrams and design decisions
+.github/workflows/ci.yml   Lint + format + typecheck + build + test on every push/PR
+.github/dependabot.yml     Weekly dependency update checks
+Dockerfile                 Multi-stage build for container deployment (see Deploying, above)
 ```
+
+## Known limitations
+
+- **No authentication.** Anyone who can reach `/mcp` can read/write data — fine for a local or demo deployment, not for real personal data. See [SECURITY.md](SECURITY.md).
+- **Single-instance only.** Session state is in-memory; running more than one instance would break session continuity without adding a shared session store.
+- **JSON-file storage.** Fine for a demo's data volume; a real deployment would want a managed database (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#design-decisions)).
+
+## Contributing
+
+Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and the pre-PR checklist, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Product feedback
 

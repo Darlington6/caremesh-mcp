@@ -23,7 +23,7 @@ export function registerCaretakingTools(server: McpServer): void {
     async ({ person, note, mood }) => {
       const entry = await addCheckIn(person, note, mood);
       return textResult(`Logged check-in for ${person} at ${entry.timestamp}.`);
-    }
+    },
   );
 
   server.registerTool(
@@ -40,9 +40,9 @@ export function registerCaretakingTools(server: McpServer): void {
     async ({ person, medication, taken }) => {
       const entry = await addMedicationEvent(person, medication, taken);
       return textResult(
-        `Logged medication event for ${person}: ${medication} ${taken ? "taken" : "missed"} at ${entry.timestamp}.`
+        `Logged medication event for ${person}: ${medication} ${taken ? "taken" : "missed"} at ${entry.timestamp}.`,
       );
-    }
+    },
   );
 
   server.registerTool(
@@ -59,7 +59,7 @@ export function registerCaretakingTools(server: McpServer): void {
     async ({ person, task, due }) => {
       await addCareTask(person, task, due);
       return textResult(`Added care task for ${person}: "${task}"${due ? ` (due ${due})` : ""}.`);
-    }
+    },
   );
 
   server.registerTool(
@@ -76,7 +76,7 @@ export function registerCaretakingTools(server: McpServer): void {
       if (tasks.length === 0) return textResult(`No care tasks found for ${person}.`);
       const lines = tasks.map((t) => `- [${t.done ? "x" : " "}] ${t.task}${t.due ? ` (due ${t.due})` : ""}`);
       return textResult(`Care tasks for ${person}:\n${lines.join("\n")}`);
-    }
+    },
   );
 
   server.registerTool(
@@ -95,7 +95,7 @@ export function registerCaretakingTools(server: McpServer): void {
       const snapshot = await getDayData(person, isoDate);
       const { summary, source } = await generateDailySummary({ person, date: isoDate, ...snapshot });
       return textResult(`${summary}\n\n(source: ${source})`);
-    }
+    },
   );
 
   server.registerTool(
@@ -111,7 +111,9 @@ export function registerCaretakingTools(server: McpServer): void {
     async ({ person }) => {
       const { checkIns, medicationEvents } = await getRecentActivity(person);
       const alerts = computeAlerts(person, checkIns, medicationEvents);
-      return textResult(alerts.length > 0 ? `Alerts for ${person}:\n- ${alerts.join("\n- ")}` : `No alerts for ${person}.`);
-    }
+      return textResult(
+        alerts.length > 0 ? `Alerts for ${person}:\n- ${alerts.join("\n- ")}` : `No alerts for ${person}.`,
+      );
+    },
   );
 }

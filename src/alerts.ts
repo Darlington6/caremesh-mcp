@@ -8,7 +8,7 @@ export function computeAlerts(
   person: string,
   checkIns: CheckIn[],
   medicationEvents: MedicationEvent[],
-  now: number = Date.now()
+  now: number = Date.now(),
 ): string[] {
   const alerts: string[] = [];
 
@@ -19,7 +19,7 @@ export function computeAlerts(
     alerts.push(
       lastCheckIn
         ? `No check-in for ${person} in ${Math.round(hoursSinceCheckIn)} hours (last: ${lastCheckIn.timestamp}).`
-        : `No check-in has ever been recorded for ${person}.`
+        : `No check-in has ever been recorded for ${person}.`,
     );
   }
 
@@ -27,9 +27,13 @@ export function computeAlerts(
   const lastMissed = sortedMeds.find((m) => !m.taken);
   if (lastMissed) {
     const hoursSinceMissed = (now - Date.parse(lastMissed.timestamp)) / 3_600_000;
-    const takenSince = medicationEvents.some((m) => m.taken && Date.parse(m.timestamp) > Date.parse(lastMissed.timestamp));
+    const takenSince = medicationEvents.some(
+      (m) => m.taken && Date.parse(m.timestamp) > Date.parse(lastMissed.timestamp),
+    );
     if (!takenSince && hoursSinceMissed < HOURS_UNTIL_MISSED_MED_STALE) {
-      alerts.push(`Missed medication "${lastMissed.medication}" at ${lastMissed.timestamp} with no taken dose logged since.`);
+      alerts.push(
+        `Missed medication "${lastMissed.medication}" at ${lastMissed.timestamp} with no taken dose logged since.`,
+      );
     }
   }
 

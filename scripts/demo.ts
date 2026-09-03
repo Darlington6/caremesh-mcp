@@ -64,26 +64,35 @@ async function main() {
     section("Logging a check-in");
     printToolResult(
       "log_checkin ->",
-      await client.callTool({ name: "log_checkin", arguments: { person, note: "Had breakfast, watching TV", mood: "good" } })
+      await client.callTool({
+        name: "log_checkin",
+        arguments: { person, note: "Had breakfast, watching TV", mood: "good" },
+      }),
     );
 
     section("Logging a missed medication dose");
     printToolResult(
       "log_medication ->",
-      await client.callTool({ name: "log_medication", arguments: { person, medication: "Lisinopril", taken: false } })
+      await client.callTool({ name: "log_medication", arguments: { person, medication: "Lisinopril", taken: false } }),
     );
 
     section("Adding a care task");
     printToolResult(
       "add_care_task ->",
-      await client.callTool({ name: "add_care_task", arguments: { person, task: "Refill prescription", due: "2026-09-05" } })
+      await client.callTool({
+        name: "add_care_task",
+        arguments: { person, task: "Refill prescription", due: "2026-09-05" },
+      }),
     );
 
     section("Listing care tasks");
     printToolResult("list_care_tasks ->", await client.callTool({ name: "list_care_tasks", arguments: { person } }));
 
     section("Getting the daily summary");
-    printToolResult("get_daily_summary ->", await client.callTool({ name: "get_daily_summary", arguments: { person } }));
+    printToolResult(
+      "get_daily_summary ->",
+      await client.callTool({ name: "get_daily_summary", arguments: { person } }),
+    );
 
     section("Checking alerts");
     printToolResult("get_alerts ->", await client.callTool({ name: "get_alerts", arguments: { person } }));
