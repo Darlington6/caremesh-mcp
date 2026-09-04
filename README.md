@@ -6,7 +6,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![MCP spec](https://img.shields.io/badge/MCP-2025--11--25-000000)](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#streamable-http)
 [![Amazon Bedrock](https://img.shields.io/badge/Amazon-Bedrock-232F3E?logo=amazonaws&logoColor=white)](https://docs.aws.amazon.com/bedrock/)
-[![Amazon DynamoDB](https://img.shields.io/badge/Amazon-DynamoDB-4053D6)](https://docs.aws.amazon.com/amazondynamodb/)
+[![Amazon DynamoDB](https://img.shields.io/badge/Amazon-DynamoDB-4053D6)](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
 A self-hosted **Model Context Protocol (MCP)** server (spec `2025-11-25`+, Streamable HTTP) for caretaking coordination, built for the **Build, Ship, Shape: Amazon Developer Hackathon** (Alexa+ track).
