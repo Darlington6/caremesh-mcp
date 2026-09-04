@@ -105,7 +105,7 @@ function buildHouseholdPrompt({ household, date, members }: HouseholdSnapshot): 
   ].join("\n");
 }
 
-/** Local, deterministic household summary — reuses fallbackSummary per member. */
+/** Local, deterministic household summary; reuses fallbackSummary per member. */
 export function fallbackHouseholdSummary(snapshot: HouseholdSnapshot): string {
   return snapshot.members.map((m) => `${m.person}: ${fallbackSummary(m)}`).join("\n");
 }
