@@ -41,7 +41,7 @@ export function computeAlerts(
 }
 
 /**
- * Household alerts are just each member's own alerts flattened together — computeAlerts already
+ * Household alerts are just each member's own alerts flattened together. computeAlerts already
  * names the person in every message it produces, so no extra prefixing is needed here.
  */
 export function computeHouseholdAlerts(

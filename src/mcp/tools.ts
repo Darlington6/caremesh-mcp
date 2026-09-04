@@ -157,7 +157,7 @@ export function registerCaretakingTools(server: McpServer): void {
       return textResult(
         members.length > 0
           ? `Household "${household}": ${members.join(", ")}.`
-          : `Household "${household}" has no members yet — use add_household_member to add one.`,
+          : `Household "${household}" has no members yet. Use add_household_member to add one.`,
       );
     },
   );
@@ -176,7 +176,7 @@ export function registerCaretakingTools(server: McpServer): void {
     async ({ household, date }) => {
       const members = await listHouseholdMembers(household);
       if (members.length === 0) {
-        return textResult(`Household "${household}" has no members yet — use add_household_member to add one.`);
+        return textResult(`Household "${household}" has no members yet. Use add_household_member to add one.`);
       }
       const isoDate = date ?? new Date().toISOString().slice(0, 10);
       const memberSnapshots = await Promise.all(
@@ -203,7 +203,7 @@ export function registerCaretakingTools(server: McpServer): void {
     async ({ household }) => {
       const members = await listHouseholdMembers(household);
       if (members.length === 0) {
-        return textResult(`Household "${household}" has no members yet — use add_household_member to add one.`);
+        return textResult(`Household "${household}" has no members yet. Use add_household_member to add one.`);
       }
       const memberActivity = await Promise.all(
         members.map(async (person) => ({ person, ...(await getRecentActivity(person)) })),

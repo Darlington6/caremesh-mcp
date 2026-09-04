@@ -21,7 +21,7 @@ const isLocal = Boolean(process.env.DYNAMODB_ENDPOINT);
 const rawClient = new DynamoDBClient({
   endpoint: process.env.DYNAMODB_ENDPOINT, // set for DynamoDB Local (dev/CI); unset in real AWS
   // DynamoDB Local still requires *some* credentials to sign requests, even though it never
-  // validates them — in real AWS (no DYNAMODB_ENDPOINT) we rely on the normal SDK credential
+  // validates them. In real AWS (no DYNAMODB_ENDPOINT) we rely on the normal SDK credential
   // chain (IAM task role in ECS) instead, so this is only supplied for the local case.
   ...(isLocal && { credentials: { accessKeyId: "local", secretAccessKey: "local" } }),
 });
@@ -58,7 +58,7 @@ TABLE_SPECS.push({
 
 /**
  * Idempotently creates the tables against DYNAMODB_ENDPOINT. Only meant for local dev / CI
- * against DynamoDB Local — a real deployment provisions tables ahead of time (see README),
+ * against DynamoDB Local. A real deployment provisions tables ahead of time (see README),
  * since the app's IAM role shouldn't need CreateTable permission in production.
  */
 export async function ensureLocalTablesExist(): Promise<void> {

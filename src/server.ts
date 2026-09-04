@@ -21,7 +21,7 @@ const app = express();
 app.use(helmet());
 app.use(express.json());
 
-// Public-facing endpoint (this is what a deployed instance exposes to the internet) — rate limited
+// Public-facing endpoint (this is what a deployed instance exposes to the internet), rate limited
 // to blunt casual abuse. /healthz is exempt since ECS/ALB health checks hit it continuously.
 app.use(
   "/mcp",
@@ -34,7 +34,7 @@ app.use(
 );
 
 // Optional bearer-token auth: set MCP_AUTH_TOKEN to require `Authorization: Bearer <token>` on
-// every /mcp request. Unset (the local/dev default) disables the check entirely — a real
+// every /mcp request. Unset (the local/dev default) disables the check entirely; a real
 // deployment should always set this. Constant-time comparison to avoid a timing side-channel.
 const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN;
 
@@ -56,7 +56,7 @@ app.use("/mcp", (req, res, next) => {
     return;
   }
   // RFC 7235 requires a WWW-Authenticate header on 401s. Also makes it explicit to any client
-  // that this is a plain bearer token, not an OAuth-protected resource — this server doesn't
+  // that this is a plain bearer token, not an OAuth-protected resource. This server doesn't
   // implement MCP's OAuth flow (see docs/ARCHITECTURE.md for why), so a client that tries OAuth
   // discovery here (e.g. POSTing to a dynamic client registration endpoint) will 404.
   res.set("WWW-Authenticate", 'Bearer realm="caremesh-mcp"');
@@ -119,7 +119,7 @@ app.get("/healthz", (_req, res) => {
   res.json({ status: "ok", activeSessions: transports.size });
 });
 
-// DYNAMODB_ENDPOINT is only set for local dev / CI against DynamoDB Local — a real deployment
+// DYNAMODB_ENDPOINT is only set for local dev / CI against DynamoDB Local. A real deployment
 // provisions tables ahead of time, so the app's IAM role doesn't need CreateTable permission.
 if (process.env.DYNAMODB_ENDPOINT) {
   await ensureLocalTablesExist();

@@ -10,8 +10,8 @@ function sleep(ms: number) {
 }
 
 // Generous budget: a cold spawn here pays for tsx's TS transform, Express startup, and (since
-// this is the first time these table names are used) four DynamoDB CreateTable round-trips —
-// slower CI runners need real headroom, not just what's comfortable locally.
+// this is the first time these table names are used) four DynamoDB CreateTable round-trips.
+// Slower CI runners need real headroom, not just what's comfortable locally.
 async function waitForHealthy(baseUrl: string, retries = 60): Promise<void> {
   for (let i = 0; i < retries; i++) {
     try {
@@ -58,7 +58,7 @@ function initializeRequest(baseUrl: string, headers: Record<string, string> = {}
   });
 }
 
-// One server per auth mode, shared across that mode's assertions — these are read-only checks
+// One server per auth mode, shared across that mode's assertions. These are read-only checks
 // against the auth middleware itself, not the data layer, so there's nothing for them to step
 // on by sharing a server. Cuts this file from 5 full server spawns to 2.
 
