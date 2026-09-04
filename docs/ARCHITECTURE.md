@@ -54,6 +54,13 @@ sequenceDiagram
     T-->>C: JSON-RPC response
 ```
 
+<details>
+<summary>Rendered image (for viewers without Mermaid support)</summary>
+
+![Sequence diagram of a get_daily_summary tool call](images/get-daily-summary-sequence.png)
+
+</details>
+
 `get_household_summary` follows the same shape, just fanning `getDayData`/`generateHouseholdSummary` out across every member of a household instead of one person (see `get_household_summary` in `src/mcp/tools.ts`). The remaining eight tools follow a simpler version of the same shape, with no Bedrock branch at all: handler, then Zod-validated input, then `store.ts` (or `alerts.ts` for the two alert tools), then a formatted text result.
 
 ## Data model
