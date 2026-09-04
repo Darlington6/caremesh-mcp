@@ -1,10 +1,40 @@
 # Caremesh MCP
 
 [![CI](https://github.com/Darlington6/caremesh-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Darlington6/caremesh-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-22.13.0-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![MCP spec](https://img.shields.io/badge/MCP-2025--11--25-000000)](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#streamable-http)
+[![Amazon Bedrock](https://img.shields.io/badge/Amazon-Bedrock-232F3E?logo=amazonaws&logoColor=white)](https://docs.aws.amazon.com/bedrock/)
+[![Amazon DynamoDB](https://img.shields.io/badge/Amazon-DynamoDB-4053D6)](https://docs.aws.amazon.com/amazondynamodb/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
 A self-hosted **Model Context Protocol (MCP)** server (spec `2025-11-25`+, Streamable HTTP) for caretaking coordination, built for the **Build, Ship, Shape: Amazon Developer Hackathon** (Alexa+ track).
 
 A family or caregiver logs check-ins, medication, and shared care tasks for a person they look after. An Alexa+ agent (or any MCP client) can call the server's tools to record events and pull a natural-language daily summary, generated via **Amazon Bedrock**, plus alerts for missed check-ins or medication.
+
+<!-- TODO: hero screenshot goes here once saved to docs/images/ (e.g. MCP Inspector connected, Tools tab listing all ten tools) -->
+<!-- ![Caremesh MCP connected in MCP Inspector](docs/images/inspector-hero.png) -->
+
+## Table of contents
+
+- [The problem](#the-problem)
+- [The solution](#the-solution)
+- [Use cases](#use-cases)
+- [Hackathon submission info](#hackathon-submission-info)
+- [Tools exposed](#tools-exposed)
+- [Running it](#running-it)
+  - [Trying it with MCP Inspector](#trying-it-with-mcp-inspector)
+  - [Scripted demo](#scripted-demo)
+  - [Tests, linting, formatting](#tests-linting-formatting)
+- [AWS Bedrock setup](#aws-bedrock-setup-for-the-aws-builder-mini-challenge)
+- [Deploying (Amazon ECS Express Mode)](#deploying-amazon-ecs-express-mode)
+- [Architecture](#architecture)
+- [Project layout](#project-layout)
+- [Known limitations](#known-limitations)
+- [Contributing](#contributing)
+- [Product feedback](#product-feedback)
+- [License](#license)
 
 ## The problem
 
@@ -185,7 +215,9 @@ The command prints a default public URL once provisioning completes (typically 3
 
 ## Architecture
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a component diagram, a sequence diagram of a full tool call, the data model, and the reasoning behind the main design decisions (why Streamable HTTP, why a single instance, why the Bedrock fallback exists).
+![Component overview: client to Streamable HTTP transport to tool handlers to store.ts/bedrock.ts to DynamoDB/Bedrock](docs/images/architecture-overview.png)
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full write-up: this component diagram, a sequence diagram of a full tool call, the data model, and the reasoning behind the main design decisions (why Streamable HTTP, why a single instance, why the Bedrock fallback exists).
 
 ## Project layout
 
