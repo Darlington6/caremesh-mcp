@@ -13,8 +13,7 @@ A self-hosted **Model Context Protocol (MCP)** server (spec `2025-11-25`+, Strea
 
 A family or caregiver logs check-ins, medication, and shared care tasks for a person they look after. An Alexa+ agent (or any MCP client) can call the server's tools to record events and pull a natural-language daily summary, generated via **Amazon Bedrock**, plus alerts for missed check-ins or medication.
 
-<!-- TODO: hero screenshot goes here once saved to docs/images/ (e.g. MCP Inspector connected, Tools tab listing all ten tools) -->
-<!-- ![Caremesh MCP connected in MCP Inspector](docs/images/inspector-hero.png) -->
+![caremesh-mcp connected in MCP Inspector over Streamable HTTP, protocol 2025-11-25](docs/images/inspector-connected.png)
 
 ## Table of contents
 
@@ -107,6 +106,8 @@ npx @modelcontextprotocol/inspector@latest
 
 In the Inspector UI: set **Transport Type** to `Streamable HTTP` (not the default `STDIO`), set the URL to `http://localhost:3000/mcp`, then click **Connect**. Ignore the pre-filled `Command`/`Arguments` fields; those are only used for the STDIO transport. Once connected, the **Tools** tab lists and lets you call each tool above.
 
+![The Tools tab in MCP Inspector, showing the tool list and the log_checkin form](docs/images/inspector-tools.png)
+
 Connecting to a deployed instance instead of localhost and `MCP_AUTH_TOKEN` is set there? Add an `Authorization: Bearer <token>` header under that server's **Custom Headers** section (Edit the server entry to find it), or every request gets a 401.
 
 **If Inspector shows "Dynamic Client Registration rejected (HTTP 404): Cannot POST /register"** instead of a clean 401: that's Inspector itself, not this server misbehaving. On an unauthenticated request that gets a 401, Inspector tries to bootstrap MCP's OAuth flow (a `POST /register` dynamic-client-registration call). This server intentionally implements a plain bearer token instead of full OAuth (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#design-decisions) for why), so that endpoint doesn't exist and Inspector surfaces its own failed OAuth attempt rather than the underlying 401. The fix is the Custom Headers field above; `curl`, and any client that just sends the header you give it, shows the real 401 correctly.
@@ -114,6 +115,10 @@ Connecting to a deployed instance instead of localhost and `MCP_AUTH_TOKEN` is s
 ### Scripted demo
 
 `npm run demo` boots the server against a fresh set of DynamoDB tables (unique names per run, so it's repeatable), drives every tool through a realistic caretaking scenario as an MCP client, and prints each step. This is what the hackathon demo video walks through. Requires DynamoDB Local running (see above).
+
+![Terminal output of npm run demo: check-in, missed medication, care task, daily summary with the Bedrock fallback, and an alert](docs/images/demo-terminal-output.png)
+
+The `CredentialsProviderError` stack trace in there is expected, not a bug: it's the Bedrock fallback path logging why it fell back (no AWS credentials configured on this machine), then continuing normally, exactly as documented in [AWS Bedrock setup](#aws-bedrock-setup-for-the-aws-builder-mini-challenge).
 
 ### Tests, linting, formatting
 
