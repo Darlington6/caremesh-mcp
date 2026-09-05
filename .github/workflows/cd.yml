@@ -6,6 +6,10 @@ on:
   # push:
   #   branches: [main]
 
+concurrency:
+  group: cd-deploy
+  cancel-in-progress: false
+
 env:
   AWS_REGION: eu-north-1
   ECR_REPOSITORY: caremesh-mcp
@@ -74,7 +78,7 @@ jobs:
               exit 0
             fi
             case "$state" in
-              FAILED|ROLLBACK_SUCCESSFUL|ROLLBACK_FAILED)
+              FAILED|ROLLBACK_SUCCESSFUL|ROLLBACK_FAILED|STOPPED)
                 echo "Deployment did not succeed"
                 exit 1
                 ;;
