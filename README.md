@@ -13,6 +13,8 @@ A self-hosted **Model Context Protocol (MCP)** server (spec `2025-11-25`+, Strea
 
 A family or caregiver logs check-ins, medication, and shared care tasks for a person they look after. An Alexa+ agent (or any MCP client) can call the server's tools to record events and pull a natural-language daily summary, generated via **Amazon Bedrock**, plus alerts for missed check-ins or medication.
 
+**Live deployment**: `https://ca-922fc836b9854346ac99ed4570f02fda.ecs.eu-north-1.on.aws/mcp` (Amazon ECS Express Mode, eu-north-1). Requires an `Authorization: Bearer <token>` header, contact the maintainer for the demo token, or run it yourself locally per [Running it](#running-it) below.
+
 ![caremesh-mcp connected in MCP Inspector over Streamable HTTP, protocol 2025-11-25](docs/images/inspector-connected.png)
 
 ## Table of contents
@@ -218,6 +220,8 @@ Note `DYNAMODB_ENDPOINT` is deliberately **not** set here; leaving it unset is w
 `minTaskCount`/`maxTaskCount` are pinned to `1` deliberately: the server keeps MCP session state in memory, so it must run as a single instance (multiple replicas behind the load balancer would break session continuity between requests). This is fine for a hackathon demo; it would need a shared session store (e.g. DynamoDB/Redis) to scale beyond one instance.
 
 The command prints a default public URL once provisioning completes (typically 3 to 5 minutes); that becomes the live "Try it out" link, pointing MCP clients at `<url>/mcp`.
+
+**Two things worth expecting on a truly first deploy** (both happened to us): if IAM roles were just created moments earlier, `create-express-gateway-service` can fail with `Unable to assume the service linked role`; wait about a minute for IAM propagation and retry, no need to change anything. And once the service reports `ACTIVE`, the actual Fargate task can still take a few more minutes to reach `RUNNING` (check with `aws ecs describe-service-deployments`); `ACTIVE` means the control plane accepted the config, not that traffic is being served yet.
 
 ## Architecture
 
