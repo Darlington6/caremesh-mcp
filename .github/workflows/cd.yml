@@ -1,4 +1,4 @@
-name: CD
+name: Deploy to Amazon ECS
 
 on:
   workflow_dispatch:
@@ -34,11 +34,15 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and push image
+        id: build
         env:
           REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
-          docker build -t "$REGISTRY/$ECR_REPOSITORY:latest" .
+          image="$REGISTRY/$ECR_REPOSITORY:${{ github.sha }}"
+          docker build -t "$image" -t "$REGISTRY/$ECR_REPOSITORY:latest" .
+          docker push "$image"
           docker push "$REGISTRY/$ECR_REPOSITORY:latest"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
 
       - name: Look up auth token secret ARN
         id: secret
@@ -48,14 +52,14 @@ jobs:
 
       - name: Deploy new image to ECS Express Mode
         env:
-          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE: ${{ steps.build.outputs.image }}
           SECRET_ARN: ${{ steps.secret.outputs.arn }}
         run: |
           aws ecs update-express-gateway-service \
             --region "$AWS_REGION" \
             --service-arn "$ECS_SERVICE_ARN" \
             --primary-container "{
-              \"image\": \"$REGISTRY/$ECR_REPOSITORY:latest\",
+              \"image\": \"$IMAGE\",
               \"containerPort\": 3000,
               \"awsLogsConfiguration\": { \"logGroup\": \"/ecs/caremesh-mcp\", \"logStreamPrefix\": \"ecs\" },
               \"environment\": [
@@ -70,6 +74,10 @@ jobs:
       - name: Wait for deployment to finish
         run: |
           deployment_arn=$(aws ecs describe-express-gateway-service --service-arn "$ECS_SERVICE_ARN" --region "$AWS_REGION" --query "service.currentDeployment" --output text)
+          if [ -z "$deployment_arn" ] || [ "$deployment_arn" = "None" ]; then
+            echo "No new deployment was created (image unchanged from the current one); nothing to wait for."
+            exit 0
+          fi
           echo "Watching deployment: $deployment_arn"
           for _ in $(seq 1 60); do
             state=$(aws ecs describe-service-deployments --service-deployment-arns "$deployment_arn" --region "$AWS_REGION" --query "serviceDeployments[0].status" --output text)
