@@ -223,6 +223,12 @@ The command prints a default public URL once provisioning completes (typically 3
 
 **Two things worth expecting on a truly first deploy** (both happened to us): if IAM roles were just created moments earlier, `create-express-gateway-service` can fail with `Unable to assume the service linked role`; wait about a minute for IAM propagation and retry, no need to change anything. And once the service reports `ACTIVE`, the actual Fargate task can still take a few more minutes to reach `RUNNING` (check with `aws ecs describe-service-deployments`); `ACTIVE` means the control plane accepted the config, not that traffic is being served yet.
 
+### Redeploying after a code change
+
+Once the service exists, `.github/workflows/cd.yml` automates "ship a new build" (build the image, push to ECR, update the ECS service with it, wait for the rollout to finish). It's a `workflow_dispatch` trigger, a manual **Run workflow** button in the repo's Actions tab, not automatic on every merge; this is a hackathon demo with a handful of deploys, not a service under continuous iteration, so auto-deploying on every docs PR would be pure risk for no benefit. Flipping it to auto-deploy on merges to `main` later is a two-line uncomment in the workflow's `on:` block, not a redesign.
+
+**Auth note**: the original plan was OIDC role assumption (short-lived credentials, nothing stored in GitHub), but this account's AWS Organization has a Service Control Policy that explicitly denies IAM OIDC provider management entirely, confirmed by actually trying both `iam:ListOpenIDConnectProviders` and `iam:CreateOpenIDConnectProvider`. Not fixable from inside the account. Fell back to a narrowly-scoped IAM user with static access keys stored as GitHub encrypted secrets (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`), permissions limited to exactly what the workflow does (push to this one ECR repo, update/describe this one ECS service, read this one secret's ARN), not broad account access. Rotate these keys periodically since, unlike OIDC tokens, they don't expire on their own.
+
 ## Architecture
 
 ![Component overview: client to Streamable HTTP transport to tool handlers to store.ts/bedrock.ts to DynamoDB/Bedrock](docs/images/architecture-overview.png)
