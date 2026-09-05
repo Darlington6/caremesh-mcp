@@ -13,7 +13,7 @@ A self-hosted **Model Context Protocol (MCP)** server (spec `2025-11-25`+, Strea
 
 A family or caregiver logs check-ins, medication, and shared care tasks for a person they look after. An Alexa+ agent (or any MCP client) can call the server's tools to record events and pull a natural-language daily summary, generated via **Amazon Bedrock**, plus alerts for missed check-ins or medication.
 
-**Live deployment**: `https://ca-922fc836b9854346ac99ed4570f02fda.ecs.eu-north-1.on.aws/mcp` (Amazon ECS Express Mode, eu-north-1). Requires an `Authorization: Bearer <token>` header, contact the maintainer for the demo token, or run it yourself locally per [Running it](#running-it) below.
+**Live deployment**: [ca-922fc836b9854346ac99ed4570f02fda.ecs.eu-north-1.on.aws](https://ca-922fc836b9854346ac99ed4570f02fda.ecs.eu-north-1.on.aws) (Amazon ECS Express Mode, eu-north-1). That link is just an info page, since this is an API, not a website; the actual MCP endpoint is `POST /mcp` on that same host, and it requires an `Authorization: Bearer <token>` header (contact the maintainer for the demo token, or run it yourself locally per [Running it](#running-it) below).
 
 ![caremesh-mcp connected in MCP Inspector over Streamable HTTP, protocol 2025-11-25](docs/images/inspector-connected.png)
 

@@ -119,6 +119,25 @@ app.get("/healthz", (_req, res) => {
   res.json({ status: "ok", activeSessions: transports.size });
 });
 
+// Not a web app; this is here so a human clicking the bare URL (e.g. from a submission page)
+// sees something useful instead of Express's default "Cannot GET /".
+app.get("/", (_req, res) => {
+  res
+    .type("text/plain")
+    .send(
+      [
+        "caremesh-mcp: a self-hosted MCP server (spec 2025-11-25, Streamable HTTP) for caretaking coordination.",
+        "",
+        "This isn't a web page. It's an API for MCP clients (Alexa+, MCP Inspector, etc.).",
+        "",
+        "Connect via Streamable HTTP: POST /mcp" + (MCP_AUTH_TOKEN ? " (requires Authorization: Bearer <token>)" : ""),
+        "Health check: GET /healthz",
+        "",
+        "Source, docs, and setup instructions: https://github.com/Darlington6/caremesh-mcp",
+      ].join("\n"),
+    );
+});
+
 // DYNAMODB_ENDPOINT is only set for local dev / CI against DynamoDB Local. A real deployment
 // provisions tables ahead of time, so the app's IAM role doesn't need CreateTable permission.
 if (process.env.DYNAMODB_ENDPOINT) {
