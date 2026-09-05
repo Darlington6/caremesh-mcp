@@ -137,9 +137,10 @@ The `get_daily_summary` and `get_household_summary` tools call Amazon Bedrock's 
 
 To enable real Bedrock calls:
 
-1. Have an AWS account with [model access enabled](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) for an Anthropic Claude model in your chosen region.
-2. Copy `.env.example` to `.env` and set `AWS_REGION` / `BEDROCK_MODEL_ID`.
-3. Ensure standard AWS credentials are available (e.g. `AWS_PROFILE`, or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`).
+1. Copy `.env.example` to `.env`, it already has a verified-working `AWS_REGION`/`BEDROCK_MODEL_ID` pair; change them if you want a different region or model.
+2. Ensure standard AWS credentials are available: `aws login` (short-lived, tied to your console session, no static key to manage), `aws configure` (a static access key), or `AWS_PROFILE`/`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, any standard AWS SDK credential source works.
+3. Some Bedrock models require an **inference profile** rather than the bare model id for on-demand invocation (a region-prefixed id like `eu.anthropic...` or `global.anthropic...`); if you get `ValidationException: ... isn't supported. Retry your request with the ID or ARN of an inference profile`, run `aws bedrock list-inference-profiles --region <region>` to find the right id for your model.
+4. **First-time Anthropic model use per account** requires submitting a one-time use-case questionnaire. Bedrock's old standalone "Model access" console page is retired; models now auto-enable on first real invocation instead. The questionnaire surfaces when you actually try to invoke an Anthropic model for the first time, e.g. in the Bedrock console's **Test → Playground**, not on any dedicated access-management page. Submit it there once, then real Bedrock calls work immediately (verified: no 15-minute wait needed for us in practice, despite the error message suggesting one).
 
 ## Deploying (Amazon ECS Express Mode)
 
