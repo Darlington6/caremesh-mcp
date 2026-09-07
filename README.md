@@ -258,7 +258,7 @@ Dockerfile                 Multi-stage build for container deployment (see Deplo
 ## Known limitations
 
 - **Auth is opt-in, not enforced.** Setting `MCP_AUTH_TOKEN` requires `Authorization: Bearer <token>` on every `/mcp` request (see `src/server.ts`), but it's unset by default locally so Inspector/the demo script work with zero setup. A real deployment must set it explicitly (see [Deploying](#deploying-amazon-ecs-express-mode)); nothing stops someone from deploying without it. See [SECURITY.md](SECURITY.md).
-- **Single-instance only.** Session state is in-memory; running more than one instance would break session continuity without adding a shared session store.
+- **Single-instance only, and a session can't survive a redeploy.** Session state is in-memory; running more than one instance would break session continuity without adding a shared session store. This also means a redeploy (the CD workflow, or a manual `update-express-gateway-service`) briefly runs the old and new task side by side while the old one drains, and an MCP client whose session started just before the swap can get `{"code":-32000,"message":"No valid session; send an initialize request first."}` on its next call if it lands on the other task. The fix is just to reconnect (a fresh `initialize` against whichever task is now serving); it isn't data loss or a broken deployment.
 
 ## Contributing
 
