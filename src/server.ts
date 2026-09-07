@@ -18,6 +18,10 @@ function buildServer(): McpServer {
 }
 
 const app = express();
+// Exactly one hop of reverse proxy in front of this app in a real deployment (the ECS Express
+// Mode ALB), so express-rate-limit can trust the X-Forwarded-For IP it sets without also
+// trusting anything a client tries to spoof further up the chain.
+app.set("trust proxy", 1);
 app.use(helmet());
 app.use(express.json());
 
